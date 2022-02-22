@@ -1,4 +1,4 @@
-#!/usr/bin/env lua53
+#!/usr/bin/env lua-5.4
 if #arg < 1 then
     print("usage: " .. arg[0] .. " <file.bmp>")
     os.exit(1)
@@ -34,6 +34,15 @@ end
 
 function read_bitmap(file)
     local f = assert(io.open(file, "rb"))
+
+    local magic = string.format("%02X", string.unpack(">I2", f:read(2)))
+
+    if magic ~= "424D" then
+        print("magic: ", magic)
+        print(file .. ": is not a bitmap file.")
+        os.exit(1)
+    end
+
     local pixeldata = {}
 
     -- 0x0A contains the offset to the pixel data
@@ -63,7 +72,6 @@ function read_bitmap(file)
     print("bpp: " .. bpp)
 
     rowsize = math.floor(bpp/8 * width)
-    --padding = 0
 
     while rowsize % 4 ~= 0 do
        rowsize = rowsize +1
@@ -97,31 +105,15 @@ function read_bitmap(file)
             end
         else
             for j = 1, rowsize, 1 do
-                -- print(string.format("%02X", f:seek()))
                 -- bpp/8 gives bytes per pixel
                 n = math.floor(bpp/8)
                 fmt = "I" .. n
                 pxl = string.unpack(fmt, f:read(n))
-                --print("pxl: ", string.format("%02X", pxl))
                 table.insert(r, pxl)
             end
         end
 
-        -- if padding > 0 then
-            -- f:seek("cur", padding)
-        -- end
-
-        -- Read in padding if needed
-        -- while #r % 4 ~= 0 do
-        --     f:read(1)
-        --     --table.insert(r, "\x00")
-        -- end
-
-        --print("#r: ", #r)
-
         table.insert(pixeldata, r)
-        -- Seek to next row
-        -- offset = offset + rowsize
     end
 
     f:close()
@@ -129,7 +121,7 @@ function read_bitmap(file)
 end
 
 -- ANSI color codes
--- -- foreground
+-- foreground
 -- black = 30,
 -- red = 31,
 -- green = 32,
@@ -139,7 +131,7 @@ end
 -- cyan = 36,
 -- white = 37,
 
--- -- background
+-- background
 -- onblack = 40,
 -- onred = 41,
 -- ongreen = 42,
@@ -167,19 +159,20 @@ colors = {
     [0x0E] = 32,
     [0x0F] = 32,
     [0x10] = 35,
+    [0x77] = 33,
+    [0xFC] = 34,
+    [0xF9] = 31,
+    [0xFF] = 30,
 }
 
 img = read_bitmap(arg[1])
 
---io.write("Uint16 pixels[" .. height .. "*" .. width .. "] = {\n")
-
-nl = 10000
+io.write("Uint16 pixels[" .. height .. "*" .. width .. "] = {\n")
 
 -- Read pixel data from the table and print out the hex values
 -- Image data is read from the "bottom" up
 for i = #img, 1, -1 do
-    --io.write("\t");
-    --io.write(nl .. " DATA ")
+    io.write("\t");
     rowdata = img[i]
     for n, v in ipairs(rowdata) do
         -- Lua 5.1 doesn't support bit shifts.  Dividing by 2^shift equals the same result.
@@ -188,13 +181,13 @@ for i = #img, 1, -1 do
             q = v
         else
             q = math.floor(v / (2^(bpp-4)))
+            --q = v
+            --io.write("v: ", v, " ")
+            --io.write("q: ", q, " ")
         end
-        c_code = colors[q]
-        --io.write("0x" .. v .. ", ")
-        io.write('\27[' .. c_code .. 'm' .. string.format("%02X", v) .. '\27[0m')
+        io.write('\27[' .. colors[q] .. 'm' .. string.format("%02X", v) .. '\27[0m')
     end
     io.write("\n");
-    nl = nl + 1
 end
 
---io.write("};\n");
+io.write("};\n");
